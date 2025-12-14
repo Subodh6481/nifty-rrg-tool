@@ -2,71 +2,52 @@ import pandas as pd
 import numpy as np
 
 
-def calculate_rrg(
-    data: dict,
-    rs_period: int,
-    roc_period: int,
-    tail_length: int
-):
+def calculate_rrg(data, rs_period, roc_period, tail_length):
     """
-    Calculate RRG metrics with multi-point history.
-
-    data = {
-        "benchmark": pd.Series,
-        "sectors": {
-            "IT": pd.Series,
-            "Bank": pd.Series,
-            ...
-        }
-    }
-
-    Returns:
-        {
-            "IT": DataFrame(rs_ratio, rs_momentum),
-            "Bank": DataFrame(...),
-            ...
-        }
+    Returns multi-point RRG history per sector.
+    Output columns: sector, rs_ratio, rs_momentum
     """
 
-    benchmark_prices = data["benchmark"]
-    sector_prices = data["sectors"]
+    records = []
 
-    results = {}
+    benchmark_df = data["^NSEI"]
+    benchmark_close = benchmark_df["Close"]
 
-    # --- Benchmark returns ---
-    benchmark_ret = benchmark_prices.pct_change()
+    for sector, df in data.items():
+        if sector == "^NSEI":
+            continue
 
-    for sector, prices in sector_prices.items():
+        rel = df["Close"] / benchmark_close
+        rel = rel.dropna()
 
-        # Align dates
-        df = pd.concat(
-            [prices, benchmark_prices],
-            axis=1,
-            join="inner"
-        )
-        # Ensure required columns exist — do NOT overwrite all columns
-        required_cols = {"sector", "rs_ratio", "rs_momentum"}
-        missing = required_cols - set(df.columns)
+        # RS-Ratio (EMA normalized to 100)
+        rs_ratio = (
+            rel / rel.ewm(span=rs_period, adjust=False).mean()
+        ) * 100
 
-        if missing:
-            raise ValueError(f"Missing required columns in RRG data: {missing}")
-
-        # Relative strength
-        rs = (df["sector"] / df["benchmark"]) * 100
-        rs_ema = rs.ewm(span=rs_period, adjust=False).mean()
-
-        # RS Momentum
-        rs_roc = rs_ema.pct_change(periods=roc_period) * 100 + 100
+        # RS-Momentum (ROC normalized to 100)
+        rs_momentum = (
+            rs_ratio / rs_ratio.shift(roc_period)
+        ) * 100
 
         rrg_df = pd.DataFrame({
-            "rs_ratio": rs_ema,
-            "rs_momentum": rs_roc
+            "sector": sector,
+            "rs_ratio": rs_ratio,
+            "rs_momentum": rs_momentum
         }).dropna()
 
-        # Keep tail
-        if len(rrg_df) >= tail_length:
-            rrg_df = rrg_df.iloc[-tail_length:]
+        # keep only tail
+        rrg_df = rrg_df.tail(tail_length)
 
-        results[sector] = rrg_df
+        records.append(rrg_df)
 
-    return results
+    df = pd.concat(records, ignore_index=True)
+
+    # ✅ validate AFTER creation
+    required_cols = {"sector", "rs_ratio", "rs_momentum"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required columns in RRG data: {missing}")
+
+    return df
+
