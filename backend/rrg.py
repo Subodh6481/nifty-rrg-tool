@@ -3,78 +3,62 @@
 import pandas as pd
 
 
-def calculate_rrg(
-    data: dict,
-    benchmark: str,
-    ma_period: int,
-    roc_period: int,
-    tail_length: int,
-):
-    """
-    Calculate JdK RS-Ratio and RS-Momentum safely with index alignment.
-    """
-
-    benchmark_price = data[benchmark]
+def calculate_rrg(data, benchmark, ma_period, roc_period, tail_length):
     results = []
 
-    for name, series in data.items():
-        if name == benchmark:
+    benchmark_prices = data[benchmark]
+
+    for sector, prices in data.items():
+        if sector == benchmark:
             continue
 
-        # -----------------------------
-        # CRITICAL: align dates
-        # -----------------------------
-        aligned = pd.concat(
-            [series, benchmark_price],
-            axis=1,
-            join="inner"
-        ).dropna()
+        # --------------------------------------------------
+        # 1. Relative Strength
+        # --------------------------------------------------
+        rs = prices / benchmark_prices
 
-        if aligned.shape[0] < max(ma_period, roc_period) + 5:
-            # Not enough data to calculate indicators safely
-            continue
+        # --------------------------------------------------
+        # 2. JdK RS-Ratio (EMA normalized)
+        # --------------------------------------------------
+        rs_ema = rs.ewm(span=ma_period, adjust=False).mean()
+        rs_ratio = 100 * (rs_ema / rs_ema.mean())
 
-        asset_price = aligned.iloc[:, 0]
-        bench_price = aligned.iloc[:, 1]
+        # --------------------------------------------------
+        # 3. JdK RS-Momentum (ROC of RS-Ratio)
+        # --------------------------------------------------
+        rs_momentum = 100 + rs_ratio.pct_change(roc_period) * 100
 
-        # -----------------------------
-        # RRG calculations
-        # -----------------------------
-        rs = asset_price / bench_price
-
-        rs_ratio = rs.ewm(
-            span=ma_period,
-            adjust=False
-        ).mean() * 100
-
-        rs_momentum = (
-            rs_ratio.pct_change(roc_period) * 100 + 100
-        )
-
-        df = pd.DataFrame(
-            {
+        # --------------------------------------------------
+        # 4. CLEAN + ALIGN
+        # --------------------------------------------------
+        df = (
+            pd.DataFrame({
                 "rs_ratio": rs_ratio,
-                "rs_momentum": rs_momentum,
-            }
-        ).dropna()
-
-        if df.empty:
-            continue
-
-        tail_df = df.tail(tail_length)
-
-        results.append(
-            {
-                "name": name,
-                "history": tail_df.values.tolist(),
-                "latest": {
-                    "rs_ratio": float(tail_df.iloc[-1]["rs_ratio"]),
-                    "rs_momentum": float(tail_df.iloc[-1]["rs_momentum"]),
-                },
-            }
+                "rs_momentum": rs_momentum
+            })
+            .dropna()
         )
 
-    if not results:
-        raise ValueError("No valid RRG data could be computed.")
+        # ❗ Critical safety check
+        if len(df) < tail_length:
+            continue
+
+        # --------------------------------------------------
+        # 5. BUILD HISTORY (THIS IS THE FIX)
+        # --------------------------------------------------
+        tail = df.iloc[-tail_length:]
+
+        history = list(
+            zip(
+                tail["rs_ratio"].values,
+                tail["rs_momentum"].values
+            )
+        )
+
+        results.append({
+            "name": sector,
+            "history": history
+        })
 
     return results
+
