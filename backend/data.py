@@ -1,35 +1,74 @@
-# backend/data.py
-
 import yfinance as yf
 import pandas as pd
 
 
-def fetch_price_series(
-    ticker: str,
-    period: str = "6mo",
-    interval: str = "1d"
-) -> pd.Series:
+# Central place for all sector tickers
+SECTOR_TICKERS = {
+    "Bank": "^NSEBANK",
+    "PSU Bank": "^NSEBANK",   # fallback if no dedicated PSU index
+    "IT": "^CNXIT",
+    "FMCG": "^CNXFMCG",
+    "Pharma": "^CNXPHARMA",
+    "Auto": "^CNXAUTO",
+    "Metal": "^CNXMETAL",
+    "Realty": "^CNXREALTY",
+    "Energy": "^CNXENERGY",
+    "Media": "^CNXMEDIA",
+}
+
+
+def load_price_data(
+    sectors: list[str],
+    benchmark: str,
+    period: str = "6mo"
+) -> dict:
     """
-    Fetch Close price series for a given ticker.
+    Fetch adjusted close price data for sectors + benchmark.
+
+    Returns:
+        {
+            "benchmark": pd.Series,
+            "sectors": {
+                "IT": pd.Series,
+                "Bank": pd.Series,
+                ...
+            }
+        }
     """
 
-    df = yf.download(
-        ticker,
+    data = {
+        "benchmark": None,
+        "sectors": {}
+    }
+
+    # --- Benchmark ---
+    benchmark_df = yf.download(
+        benchmark,
         period=period,
-        interval=interval,
-        auto_adjust=False,
         progress=False
     )
 
-    if df.empty:
-        raise ValueError(f"No data returned for ticker: {ticker}")
+    if "Close" not in benchmark_df:
+        raise ValueError("Benchmark data missing Close column")
 
-    if "Close" not in df.columns:
-        raise ValueError(f"'Close' column missing for ticker: {ticker}")
+    data["benchmark"] = benchmark_df["Close"]
 
-    series = df["Close"].dropna()
+    # --- Sector data ---
+    for sector in sectors:
+        ticker = SECTOR_TICKERS.get(sector)
 
-    if len(series) < 50:
-        raise ValueError(f"Not enough data for ticker: {ticker}")
+        if not ticker:
+            continue
 
-    return series
+        df = yf.download(
+            ticker,
+            period=period,
+            progress=False
+        )
+
+        if "Close" not in df:
+            continue
+
+        data["sectors"][sector] = df["Close"]
+
+    return data
