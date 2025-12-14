@@ -1,82 +1,68 @@
 import pandas as pd
+import numpy as np
 
-def _extract_close(series_or_df):
+
+def calculate_rrg(
+    data: dict,
+    benchmark: str,
+    rs_period: int,
+    roc_period: int,
+    tail_length: int
+) -> dict:
     """
-    Safely extract a 1D price series from various inputs
+    Calculate RRG metrics with multi-point history.
+
+    data = {
+        "benchmark": pd.Series,
+        "sectors": {
+            "IT": pd.Series,
+            "Bank": pd.Series,
+            ...
+        }
+    }
+
+    Returns:
+        {
+            "IT": DataFrame(rs_ratio, rs_momentum),
+            "Bank": DataFrame(...),
+            ...
+        }
     """
-    if isinstance(series_or_df, pd.Series):
-        return series_or_df
 
-    if not isinstance(series_or_df, pd.DataFrame):
-        raise ValueError("Expected Series or DataFrame for price data")
+    benchmark_prices = data["benchmark"]
+    sector_prices = data["sectors"]
 
-    # Preferred order
-    for col in ["Close", "Adj Close", "close"]:
-        if col in series_or_df.columns:
-            return series_or_df[col]
+    results = {}
 
-    # Fallback: single-column DataFrame
-    if series_or_df.shape[1] == 1:
-        return series_or_df.iloc[:, 0]
+    # --- Benchmark returns ---
+    benchmark_ret = benchmark_prices.pct_change()
 
-    raise KeyError(f"No price column found in DataFrame columns={series_or_df.columns}")
+    for sector, prices in sector_prices.items():
 
-def calculate_rrg(data, benchmark, ma_period, roc_period, tail_length):
-    results = []
-
-    # -----------------------------
-    # Benchmark prices (SAFE)
-    # -----------------------------
-    benchmark_prices = _extract_close(data[benchmark])
-
-    for sector, sector_data in data.items():
-        if sector == benchmark:
-            continue
-
-        prices = _extract_close(sector_data)
-
-        # -----------------------------
         # Align dates
-        # -----------------------------
-        prices, benchmark_aligned = prices.align(benchmark_prices, join="inner")
+        df = pd.concat(
+            [prices, benchmark_prices],
+            axis=1,
+            join="inner"
+        )
+        df.columns = ["sector", "benchmark"]
 
-        if len(prices) < max(ma_period, roc_period) + tail_length:
-            continue
+        # Relative strength
+        rs = (df["sector"] / df["benchmark"]) * 100
+        rs_ema = rs.ewm(span=rs_period, adjust=False).mean()
 
-        # -----------------------------
-        # Relative Strength
-        # -----------------------------
-        rs = prices / benchmark_aligned
+        # RS Momentum
+        rs_roc = rs_ema.pct_change(periods=roc_period) * 100 + 100
 
-        # -----------------------------
-        # RS-Ratio (JdK)
-        # -----------------------------
-        rs_ema = rs.ewm(span=ma_period, adjust=False).mean()
-        rs_ratio = 100 * (rs_ema / rs_ema.mean())
-
-        # -----------------------------
-        # RS-Momentum (JdK)
-        # -----------------------------
-        rs_momentum = 100 + rs_ratio.pct_change(roc_period) * 100
-
-        df = pd.DataFrame({
-            "rs_ratio": rs_ratio,
-            "rs_momentum": rs_momentum
+        rrg_df = pd.DataFrame({
+            "rs_ratio": rs_ema,
+            "rs_momentum": rs_roc
         }).dropna()
 
-        if len(df) < tail_length:
-            continue
+        # Keep tail
+        if len(rrg_df) >= tail_length:
+            rrg_df = rrg_df.iloc[-tail_length:]
 
-        tail = df.iloc[-tail_length:]
-
-        history = list(zip(
-            tail["rs_ratio"].values,
-            tail["rs_momentum"].values
-        ))
-
-        results.append({
-            "name": sector,
-            "history": history
-        })
+        results[sector] = rrg_df
 
     return results
