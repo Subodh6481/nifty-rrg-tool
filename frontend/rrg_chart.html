@@ -1,53 +1,100 @@
+<!-- frontend/rrg_chart.html -->
+
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8" />
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
-<body>
-<div id="chart" style="width:100%;height:100%;"></div>
+<body style="margin:0;">
+<div id="rrg-chart" style="width:100%;height:100%;"></div>
 
 <script>
     const data = {{DATA}};
+
     const traces = [];
+
+    // Axis center
+    const CENTER = 100;
+
+    // Quadrant colors
+    const quadrantColors = {
+        Leading: "rgba(0,200,0,0.15)",
+        Improving: "rgba(0,0,255,0.15)",
+        Lagging: "rgba(255,0,0,0.15)",
+        Weakening: "rgba(255,200,0,0.20)"
+    };
+
+    // Background quadrants
+    const shapes = [
+        {type:"rect", x0:CENTER, x1:110, y0:CENTER, y1:113, fillcolor:quadrantColors.Leading, line:{width:0}},
+        {type:"rect", x0:90, x1:CENTER, y0:CENTER, y1:113, fillcolor:quadrantColors.Improving, line:{width:0}},
+        {type:"rect", x0:90, x1:CENTER, y0:87, y1:CENTER, fillcolor:quadrantColors.Lagging, line:{width:0}},
+        {type:"rect", x0:CENTER, x1:110, y0:87, y1:CENTER, fillcolor:quadrantColors.Weakening, line:{width:0}},
+        {type:"line", x0:CENTER, x1:CENTER, y0:87, y1:113, line:{color:"black", width:1}},
+        {type:"line", x0:90, x1:110, y0:CENTER, y1:CENTER, line:{color:"black", width:1}}
+    ];
 
     data.forEach(sector => {
         const x = sector.history.map(p => p[0]);
         const y = sector.history.map(p => p[1]);
 
-        // tail
+        // Tail line
         traces.push({
-            x, y,
-            mode: "lines+markers",
-            line: { width: 1 },
-            marker: { size: 6 },
-            opacity: 0.4,
-            name: sector.name,
-            hoverinfo: "skip"
+            x: x,
+            y: y,
+            mode: "lines",
+            line: { width: 1.2 },
+            opacity: 0.6,
+            hoverinfo: "skip",
+            showlegend: false
         });
 
-        // arrow head (latest)
+        // Tail points (history)
         traces.push({
-            x: [x[x.length - 1]],
-            y: [y[y.length - 1]],
+            x: x.slice(0, -1),
+            y: y.slice(0, -1),
+            mode: "markers",
+            marker: { size: 6, opacity: 0.4 },
+            hoverinfo: "skip",
+            showlegend: false
+        });
+
+        // Latest point
+        const lx = x[x.length - 1];
+        const ly = y[y.length - 1];
+
+        traces.push({
+            x: [lx],
+            y: [ly],
             mode: "markers",
             marker: {
                 size: 12,
                 symbol: "triangle-right",
-                line: { width: 1 }
+                line: { width: 1.2 }
             },
             hovertemplate:
                 `<b>${sector.name}</b><br>` +
-                `RS Ratio: ${x.at(-1).toFixed(2)}<br>` +
-                `RS Momentum: ${y.at(-1).toFixed(2)}`
+                `RS-Ratio: ${lx.toFixed(2)}<br>` +
+                `RS-Momentum: ${ly.toFixed(2)}<extra></extra>`,
+            showlegend: false
         });
     });
 
-    Plotly.newPlot("chart", traces, {
-        xaxis: { title: "JdK RS-Ratio", zeroline: false },
-        yaxis: { title: "JdK RS-Momentum", zeroline: false },
-        showlegend: false
-    });
+    Plotly.newPlot(
+        "rrg-chart",
+        traces,
+        {
+            xaxis: { title: "JdK RS-Ratio", range: [90,110], zeroline:false },
+            yaxis: { title: "JdK RS-Momentum", range: [87,113], zeroline:false },
+            shapes: shapes,
+            margin: { l:50, r:30, t:30, b:50 },
+            plot_bgcolor: "white",
+            paper_bgcolor: "white",
+            showlegend: false
+        },
+        { displayModeBar: false }
+    );
 </script>
 </body>
 </html>
-
