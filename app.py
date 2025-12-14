@@ -111,45 +111,51 @@ def plot_rrg(rrg_metrics):
     fig.add_shape(type="line", x0=90, x1=110, y0=100, y1=100, line=dict(color="black", width=1))
 
     # Plot each sector
-    for sector, df in rrg_metrics.items():
-        x = df["rs_ratio"].values
-        y = df["rs_momentum"].values
+    for sector in rrg_metrics["sector"].unique():
+        df = rrg_metrics[rrg_metrics["sector"] == sector]
 
-        # Tail
+        x_vals = df["rs_ratio"].values
+        y_vals = df["rs_momentum"].values
+
+        if len(x_vals) < 2:
+            continue  # not enough points for tail
+
+        # Tail (history)
         fig.add_trace(go.Scatter(
-            x=x[:-1],
-            y=y[:-1],
+            x=x_vals[:-1],
+            y=y_vals[:-1],
             mode="lines+markers",
-            marker=dict(size=6, opacity=0.4),
-            line=dict(width=2),
+            line=dict(width=1),
+            marker=dict(size=5),
+            opacity=0.4,
             name=sector,
-            hoverinfo="skip",
-            showlegend=False
+            showlegend=False,
+            hoverinfo="skip"
         ))
 
         # Arrow (latest point)
-        dx = x[-1] - x[-2]
-        dy = y[-1] - y[-2]
-        angle = (180 / 3.14159) * (dy and (dy / abs(dy)) * abs(dy / (dx if dx != 0 else 1)))
+        dx = x_vals[-1] - x_vals[-2]
+        dy = y_vals[-1] - y_vals[-2]
+        angle = (np.degrees(np.arctan2(dy, dx)) + 360) % 360
 
         fig.add_trace(go.Scatter(
-            x=[x[-1]],
-            y=[y[-1]],
+            x=[x_vals[-1]],
+            y=[y_vals[-1]],
             mode="markers",
             marker=dict(
                 symbol="triangle-up",
-                size=14,
+                size=12,
                 angle=angle,
-                line=dict(width=1, color="black")
+                line=dict(width=1)
             ),
             name=sector,
             hovertemplate=(
                 f"<b>{sector}</b><br>"
                 "RS-Ratio: %{x:.2f}<br>"
                 "RS-Momentum: %{y:.2f}<extra></extra>"
-            ),
-            showlegend=False
+            )
         ))
+
 
     fig.update_layout(
         height=700,
