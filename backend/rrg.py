@@ -44,7 +44,12 @@ def calculate_rrg(
             axis=1,
             join="inner"
         )
-        df.columns = ["sector", "benchmark"]
+        # Ensure required columns exist — do NOT overwrite all columns
+        required_cols = {"sector", "rs_ratio", "rs_momentum"}
+        missing = required_cols - set(df.columns)
+
+        if missing:
+            raise ValueError(f"Missing required columns in RRG data: {missing}")
 
         # Relative strength
         rs = (df["sector"] / df["benchmark"]) * 100
