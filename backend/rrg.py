@@ -4,11 +4,10 @@ import numpy as np
 
 def calculate_rrg(
     data: dict,
-    benchmark: str,
     rs_period: int,
     roc_period: int,
     tail_length: int
-) -> dict:
+):
     """
     Calculate RRG metrics with multi-point history.
 

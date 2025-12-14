@@ -79,11 +79,11 @@ price_data = load_price_data(
 # RRG Calculation
 # ----------------------------
 rrg_metrics = calculate_rrg(
-    data=price_data,
-    ema_period=ema_period,
-    roc_period=roc_period,
-    tail_length=tail_length
-)
+                data=price_data,
+                rs_period=rs_period,
+                roc_period=roc_period,
+                tail_length=tail_length
+            )
 
 # ----------------------------
 # Plot Function
