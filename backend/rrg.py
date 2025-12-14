@@ -3,37 +3,55 @@ import pandas as pd
 def calculate_rrg(data, benchmark, ma_period, roc_period, tail_length):
     results = []
 
-    benchmark_prices = data[benchmark]
+    # -----------------------------
+    # Extract benchmark CLOSE series
+    # -----------------------------
+    benchmark_df = data[benchmark]
 
-    # 🔒 SAFETY: ensure benchmark is a Series
-    if not isinstance(benchmark_prices, pd.Series):
-        benchmark_prices = pd.Series(benchmark_prices)
+    if isinstance(benchmark_df, pd.DataFrame):
+        benchmark_prices = benchmark_df["Close"]
+    else:
+        benchmark_prices = benchmark_df
 
-    for sector, prices in data.items():
+    for sector, sector_df in data.items():
         if sector == benchmark:
             continue
 
-        # 🔒 SAFETY: ensure prices is a Series
-        if not isinstance(prices, pd.Series):
-            prices = pd.Series(prices)
+        # -----------------------------
+        # Extract sector CLOSE series
+        # -----------------------------
+        if isinstance(sector_df, pd.DataFrame):
+            prices = sector_df["Close"]
+        else:
+            prices = sector_df
 
-        # 🔒 ALIGN indices (CRITICAL)
+        # -----------------------------
+        # Align dates (CRITICAL)
+        # -----------------------------
         prices, benchmark_aligned = prices.align(benchmark_prices, join="inner")
 
         if len(prices) < max(ma_period, roc_period) + tail_length:
             continue
 
-        # 1. Relative Strength
+        # -----------------------------
+        # Relative Strength
+        # -----------------------------
         rs = prices / benchmark_aligned
 
-        # 2. RS-Ratio
+        # -----------------------------
+        # JdK RS-Ratio
+        # -----------------------------
         rs_ema = rs.ewm(span=ma_period, adjust=False).mean()
         rs_ratio = 100 * (rs_ema / rs_ema.mean())
 
-        # 3. RS-Momentum
+        # -----------------------------
+        # JdK RS-Momentum
+        # -----------------------------
         rs_momentum = 100 + rs_ratio.pct_change(roc_period) * 100
 
-        # 4. Combine
+        # -----------------------------
+        # Combine + clean
+        # -----------------------------
         df = pd.DataFrame({
             "rs_ratio": rs_ratio,
             "rs_momentum": rs_momentum
@@ -42,7 +60,9 @@ def calculate_rrg(data, benchmark, ma_period, roc_period, tail_length):
         if len(df) < tail_length:
             continue
 
-        # 5. Tail history
+        # -----------------------------
+        # Build tail history (FIX)
+        # -----------------------------
         tail = df.iloc[-tail_length:]
 
         history = list(zip(
