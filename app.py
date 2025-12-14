@@ -1,175 +1,97 @@
-# ======================================================
-# app.py  (COMPLETE, UPDATED WITH STEP 3)
-# ======================================================
-
-import math
-import streamlit as st
 import plotly.graph_objects as go
+import math
 
-from backend.config import SECTOR_TICKERS, BENCHMARK_TICKER
-from backend.data import fetch_price_series
-from backend.rrg import calculate_rrg
 
-# ======================================================
-# Streamlit configuration
-# ======================================================
-st.set_page_config(
-    page_title="Nifty Sector RRG",
-    layout="wide"
-)
-
-st.title("Nifty Sector RRG Dashboard")
-
-# ======================================================
-# Sidebar controls
-# ======================================================
-st.sidebar.header("⚙️ Controls")
-
-ma_period = st.sidebar.slider("RS-Ratio EMA Period", 5, 30, 10, 1)
-roc_period = st.sidebar.slider("RS-Momentum ROC Periods", 5, 30, 12, 1)
-tail_length = st.sidebar.slider("Tail Length (Periods)", 3, 15, 5, 1)
-
-selected_sectors = st.sidebar.multiselect(
-    "Select Sectors",
-    options=list(SECTOR_TICKERS.keys()),
-    default=list(SECTOR_TICKERS.keys())
-)
-
-# ======================================================
-# Validation
-# ======================================================
-if not selected_sectors:
-    st.warning("👈 Please select at least one sector.")
-    st.stop()
-
-if len(selected_sectors) < 3:
-    st.warning("ℹ️ RRG works best with 3 or more sectors selected.")
-
-# ======================================================
-# Fetch data
-# ======================================================
-price_data = {}
-price_data[BENCHMARK_TICKER] = fetch_price_series(BENCHMARK_TICKER)
-
-for sector in selected_sectors:
-    price_data[sector] = fetch_price_series(SECTOR_TICKERS[sector])
-
-# ======================================================
-# Calculate RRG metrics
-# ======================================================
-rrg_metrics = calculate_rrg(
-    data=price_data,
-    benchmark=BENCHMARK_TICKER,
-    ma_period=ma_period,
-    roc_period=roc_period,
-    tail_length=tail_length
-)
-
-# ======================================================
-# PLOT FUNCTION (STEP 1 + STEP 2 + STEP 3)
-# ======================================================
-def plot_rrg(metrics, chart_title):
+def plot_rrg(rrg_metrics, benchmark_name, tail_length):
     fig = go.Figure()
 
     # -------------------------
-    # STEP 1: LOCKED AXES
+    # Axis ranges (locked)
     # -------------------------
-    fig.update_xaxes(range=[90, 110], title="JdK RS-Ratio", fixedrange=True)
-    fig.update_yaxes(range=[87, 113], title="JdK RS-Momentum", fixedrange=True)
-
-    # -------------------------
-    # STEP 2: QUADRANTS
-    # -------------------------
-    fig.update_layout(
-        shapes=[
-            dict(type="rect", x0=90, x1=100, y0=100, y1=113,
-                 fillcolor="rgba(120,140,255,0.15)", line_width=0, layer="below"),
-            dict(type="rect", x0=100, x1=110, y0=100, y1=113,
-                 fillcolor="rgba(140,220,140,0.18)", line_width=0, layer="below"),
-            dict(type="rect", x0=90, x1=100, y0=87, y1=100,
-                 fillcolor="rgba(255,140,140,0.20)", line_width=0, layer="below"),
-            dict(type="rect", x0=100, x1=110, y0=87, y1=100,
-                 fillcolor="rgba(255,215,140,0.22)", line_width=0, layer="below")
-        ]
-    )
-
-    fig.add_hline(y=100, line_width=1, line_color="black")
-    fig.add_vline(x=100, line_width=1, line_color="black")
-
-    fig.add_annotation(x=93, y=111, text="Improving", showarrow=False, font=dict(size=14))
-    fig.add_annotation(x=107, y=111, text="Leading", showarrow=False, font=dict(size=14))
-    fig.add_annotation(x=93, y=89, text="Lagging", showarrow=False, font=dict(size=14))
-    fig.add_annotation(x=107, y=89, text="Weakening", showarrow=False, font=dict(size=14))
+    fig.update_xaxes(range=[90, 110], fixedrange=True, title="JdK RS-Ratio")
+    fig.update_yaxes(range=[88, 112], fixedrange=True, title="JdK RS-Momentum")
 
     # -------------------------
-    # STEP 3: TAILS + ROTATED ARROWS
+    # Quadrant backgrounds
     # -------------------------
-    for item in metrics:
-        name = item["name"]
-        history = item["history"]
+    fig.add_shape(type="rect", x0=90, x1=100, y0=100, y1=112,
+                  fillcolor="#e8edff", opacity=0.8, layer="below", line_width=0)
+    fig.add_shape(type="rect", x0=100, x1=110, y0=100, y1=112,
+                  fillcolor="#e9f6e6", opacity=0.8, layer="below", line_width=0)
+    fig.add_shape(type="rect", x0=90, x1=100, y0=88, y1=100,
+                  fillcolor="#fdeaea", opacity=0.8, layer="below", line_width=0)
+    fig.add_shape(type="rect", x0=100, x1=110, y0=88, y1=100,
+                  fillcolor="#fff4dd", opacity=0.8, layer="below", line_width=0)
 
-        x_vals = [p[0] for p in history]
-        y_vals = [p[1] for p in history]
+    # Center lines
+    fig.add_shape(type="line", x0=100, x1=100, y0=88, y1=112,
+                  line=dict(color="black", width=1))
+    fig.add_shape(type="line", x0=90, x1=110, y0=100, y1=100,
+                  line=dict(color="black", width=1))
 
-        # Tail line
-        fig.add_trace(go.Scatter(
-            x=x_vals,
-            y=y_vals,
-            mode="lines",
-            line=dict(width=1.5),
-            opacity=0.6,
-            hoverinfo="skip",
-            showlegend=False
-        ))
+    # -------------------------
+    # Quadrant titles
+    # -------------------------
+    fig.add_annotation(x=95, y=110, text="Improving", showarrow=False, font=dict(size=14))
+    fig.add_annotation(x=105, y=110, text="Leading", showarrow=False, font=dict(size=14))
+    fig.add_annotation(x=95, y=90, text="Lagging", showarrow=False, font=dict(size=14))
+    fig.add_annotation(x=105, y=90, text="Weakening", showarrow=False, font=dict(size=14))
 
-        # Tail points
+    # -------------------------
+    # Helper: arrow rotation
+    # -------------------------
+    def arrow_angle(x, y):
+        if len(x) < 2:
+            return 0
+        dx = x[-1] - x[-2]
+        dy = y[-1] - y[-2]
+        return math.degrees(math.atan2(dy, dx))
+
+    # -------------------------
+    # Plot sectors
+    # -------------------------
+    for sector, df in rrg_metrics.items():
+        x_vals = df["rs_ratio"].values[-tail_length:]
+        y_vals = df["rs_momentum"].values[-tail_length:]
+
+        # Tail (history)
         fig.add_trace(go.Scatter(
             x=x_vals[:-1],
             y=y_vals[:-1],
-            mode="markers",
-            marker=dict(size=6, opacity=0.5),
+            mode="lines+markers",
+            line=dict(width=1),
+            marker=dict(size=5, opacity=0.35),
             hoverinfo="skip",
             showlegend=False
         ))
 
-        # Arrow rotation
-        if len(x_vals) >= 2:
-            dx = x_vals[-1] - x_vals[-2]
-            dy = y_vals[-1] - y_vals[-2]
-            angle = math.degrees(math.atan2(dy, dx))
-        else:
-            angle = 0
-
-        # Latest point (rotated triangle)
+        # Arrow head (latest point)
         fig.add_trace(go.Scatter(
             x=[x_vals[-1]],
             y=[y_vals[-1]],
             mode="markers",
             marker=dict(
-                size=12,
                 symbol="triangle-right",
-                angle=angle,
-                line=dict(width=1.2)
+                size=13,                       # FIX 2: controlled size
+                angle=arrow_angle(x_vals, y_vals),  # FIX 1: correct rotation
+                line=dict(width=1, color="black")
             ),
             hovertemplate=(
-                f"<b>{name}</b><br>"
-                f"RS-Ratio: {x_vals[-1]:.2f}<br>"
-                f"RS-Momentum: {y_vals[-1]:.2f}"
-                "<extra></extra>"
+                f"<b>{sector}</b><br>"
+                "RS-Ratio: %{x:.2f}<br>"
+                "RS-Momentum: %{y:.2f}<extra></extra>"
             ),
             showlegend=False
         ))
 
+    # -------------------------
+    # Layout
+    # -------------------------
     fig.update_layout(
-        title=chart_title,
-        template="plotly_white",
-        margin=dict(l=40, r=40, t=60, b=40)
+        height=600,
+        margin=dict(l=40, r=40, t=40, b=40),
+        plot_bgcolor="white",
+        paper_bgcolor="white"
     )
 
     return fig
-
-# ======================================================
-# RENDER
-# ======================================================
-fig = plot_rrg(rrg_metrics, f"Sector RRG vs {BENCHMARK_TICKER}")
-st.plotly_chart(fig, use_container_width=True)
