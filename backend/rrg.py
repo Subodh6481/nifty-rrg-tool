@@ -1,32 +1,42 @@
 import pandas as pd
 
+def _extract_close(series_or_df):
+    """
+    Safely extract a 1D price series from various inputs
+    """
+    if isinstance(series_or_df, pd.Series):
+        return series_or_df
+
+    if not isinstance(series_or_df, pd.DataFrame):
+        raise ValueError("Expected Series or DataFrame for price data")
+
+    # Preferred order
+    for col in ["Close", "Adj Close", "close"]:
+        if col in series_or_df.columns:
+            return series_or_df[col]
+
+    # Fallback: single-column DataFrame
+    if series_or_df.shape[1] == 1:
+        return series_or_df.iloc[:, 0]
+
+    raise KeyError(f"No price column found in DataFrame columns={series_or_df.columns}")
+
 def calculate_rrg(data, benchmark, ma_period, roc_period, tail_length):
     results = []
 
     # -----------------------------
-    # Extract benchmark CLOSE series
+    # Benchmark prices (SAFE)
     # -----------------------------
-    benchmark_df = data[benchmark]
+    benchmark_prices = _extract_close(data[benchmark])
 
-    if isinstance(benchmark_df, pd.DataFrame):
-        benchmark_prices = benchmark_df["Close"]
-    else:
-        benchmark_prices = benchmark_df
-
-    for sector, sector_df in data.items():
+    for sector, sector_data in data.items():
         if sector == benchmark:
             continue
 
-        # -----------------------------
-        # Extract sector CLOSE series
-        # -----------------------------
-        if isinstance(sector_df, pd.DataFrame):
-            prices = sector_df["Close"]
-        else:
-            prices = sector_df
+        prices = _extract_close(sector_data)
 
         # -----------------------------
-        # Align dates (CRITICAL)
+        # Align dates
         # -----------------------------
         prices, benchmark_aligned = prices.align(benchmark_prices, join="inner")
 
@@ -39,19 +49,16 @@ def calculate_rrg(data, benchmark, ma_period, roc_period, tail_length):
         rs = prices / benchmark_aligned
 
         # -----------------------------
-        # JdK RS-Ratio
+        # RS-Ratio (JdK)
         # -----------------------------
         rs_ema = rs.ewm(span=ma_period, adjust=False).mean()
         rs_ratio = 100 * (rs_ema / rs_ema.mean())
 
         # -----------------------------
-        # JdK RS-Momentum
+        # RS-Momentum (JdK)
         # -----------------------------
         rs_momentum = 100 + rs_ratio.pct_change(roc_period) * 100
 
-        # -----------------------------
-        # Combine + clean
-        # -----------------------------
         df = pd.DataFrame({
             "rs_ratio": rs_ratio,
             "rs_momentum": rs_momentum
@@ -60,9 +67,6 @@ def calculate_rrg(data, benchmark, ma_period, roc_period, tail_length):
         if len(df) < tail_length:
             continue
 
-        # -----------------------------
-        # Build tail history (FIX)
-        # -----------------------------
         tail = df.iloc[-tail_length:]
 
         history = list(zip(
