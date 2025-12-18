@@ -160,55 +160,73 @@ def plot_rrg(rrg_metrics):
         if len(x_vals) < 2:
             continue  # not enough points for tail
 
-        # Tail (history) - with color and better styling
-        fig.add_trace(go.Scatter(
-            x=x_vals[:-1],
-            y=y_vals[:-1],
-            mode="lines+markers",
-            line=dict(width=2, color=sector_color),
-            marker=dict(size=4, color=sector_color),
-            opacity=0.5,
-            name=sector,
-            showlegend=False,
-            hoverinfo="skip"
-        ))
+        # Create gradient effect for tail - older points are more transparent
+        # Tail (history) - with gradient opacity
+        for i in range(len(x_vals) - 1):
+            # Calculate opacity based on position in tail (older = more transparent)
+            opacity = 0.2 + (i / (len(x_vals) - 1)) * 0.5  # Range from 0.2 to 0.7
 
-        # Arrow (latest point) - with color
-        dx = x_vals[-1] - x_vals[-2]
-        dy = y_vals[-1] - y_vals[-2]
+            # Draw line segment
+            fig.add_trace(go.Scatter(
+                x=[x_vals[i], x_vals[i+1]],
+                y=[y_vals[i], y_vals[i+1]],
+                mode="lines+markers",
+                line=dict(width=2, color=sector_color),
+                marker=dict(size=5, color=sector_color),
+                opacity=opacity,
+                name=sector,
+                legendgroup=sector,
+                showlegend=False,
+                hoverinfo="skip"
+            ))
+
+        # Calculate arrow direction from last few points for smoother direction
+        if len(x_vals) >= 3:
+            # Use last 3 points for better direction calculation
+            dx = x_vals[-1] - x_vals[-3]
+            dy = y_vals[-1] - y_vals[-3]
+        else:
+            dx = x_vals[-1] - x_vals[-2]
+            dy = y_vals[-1] - y_vals[-2]
+
         angle = (np.degrees(np.arctan2(dy, dx)) + 360) % 360
 
+        # Arrow head (latest point) - larger and more visible
         fig.add_trace(go.Scatter(
             x=[x_vals[-1]],
             y=[y_vals[-1]],
             mode="markers",
             marker=dict(
                 symbol="triangle-up",
-                size=14,
+                size=16,
                 angle=angle,
                 color=sector_color,
-                line=dict(width=1, color="white")
+                line=dict(width=2, color="white")
             ),
             name=sector,
+            legendgroup=sector,
             hovertemplate=(
                 f"<b>{sector}</b><br>"
                 "RS-Ratio: %{x:.2f}<br>"
-                "RS-Momentum: %{y:.2f}<extra></extra>"
+                "RS-Momentum: %{y:.2f}<br>"
+                "<extra></extra>"
             )
         ))
 
-        # Add sector label next to latest position
-        label_offset_x = 1.5 if dx >= 0 else -1.5
-        label_offset_y = 0.5 if dy >= 0 else -0.5
+        # Add sector label next to latest position with better positioning
+        label_offset_x = 2.0 if dx >= 0 else -2.0
+        label_offset_y = 1.0 if dy >= 0 else -1.0
 
         fig.add_annotation(
             x=x_vals[-1] + label_offset_x,
             y=y_vals[-1] + label_offset_y,
-            text=sector,
+            text=f"<b>{sector}</b>",
             showarrow=False,
-            font=dict(size=10, color=sector_color, family="Arial"),
-            bgcolor="rgba(255, 255, 255, 0.7)",
-            borderpad=2
+            font=dict(size=11, color=sector_color, family="Arial Black"),
+            bgcolor="rgba(255, 255, 255, 0.85)",
+            bordercolor=sector_color,
+            borderwidth=1,
+            borderpad=3
         )
 
 
@@ -227,8 +245,21 @@ def plot_rrg(rrg_metrics):
             borderwidth=1,
             font=dict(size=11)
         ),
-        hovermode='closest'
+        hovermode='closest',
+        # Enable hover highlighting - when hovering over a trace, others become dimmed
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=12,
+            font_family="Arial"
+        )
     )
+
+    # Update traces to support hover highlighting
+    # When you hover over one sector, others will be dimmed
+    for trace in fig.data:
+        trace.update(
+            hoverlabel=dict(namelength=-1)
+        )
 
     return fig
 
@@ -239,8 +270,37 @@ st.markdown("# Nifty Sector RRG Dashboard")
 st.markdown("*Hover over markers to see sector details. Triangle shows latest position; faded points show recent history.*")
 st.markdown("---")
 
+# Add custom CSS for better hover effects
+st.markdown("""
+<style>
+    .js-plotly-plot .plotly .modebar {
+        background-color: rgba(255, 255, 255, 0.8) !important;
+    }
+
+    /* Improve legend styling */
+    .legend {
+        cursor: pointer;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 fig = plot_rrg(rrg_metrics)
-st.plotly_chart(fig, use_container_width=True)
+
+# Custom configuration for better interactivity
+config = {
+    'displayModeBar': True,
+    'displaylogo': False,
+    'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+    'toImageButtonOptions': {
+        'format': 'png',
+        'filename': 'nifty_rrg_chart',
+        'height': 700,
+        'width': 1200,
+        'scale': 2
+    }
+}
+
+st.plotly_chart(fig, use_container_width=True, config=config)
 
 # Add footer info
 st.markdown("---")

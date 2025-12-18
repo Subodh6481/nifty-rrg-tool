@@ -90,7 +90,7 @@ quadrant_labels = [
 for label in quadrant_labels:
     fig.add_annotation(**label)
 
-# Plot each sector
+# Plot each sector with gradient tail
 for sector in rrg_metrics["sector"].unique():
     df = rrg_metrics[rrg_metrics["sector"] == sector]
     x_vals = df["rs_ratio"].values
@@ -100,36 +100,46 @@ for sector in rrg_metrics["sector"].unique():
     if len(x_vals) < 2:
         continue
 
-    # Tail
-    fig.add_trace(go.Scatter(
-        x=x_vals[:-1], y=y_vals[:-1],
-        mode="lines+markers",
-        line=dict(width=2, color=sector_color),
-        marker=dict(size=4, color=sector_color),
-        opacity=0.5, name=sector, showlegend=False, hoverinfo="skip"
-    ))
+    # Tail with gradient opacity
+    for i in range(len(x_vals) - 1):
+        opacity = 0.2 + (i / (len(x_vals) - 1)) * 0.5
+        fig.add_trace(go.Scatter(
+            x=[x_vals[i], x_vals[i+1]], y=[y_vals[i], y_vals[i+1]],
+            mode="lines+markers",
+            line=dict(width=2, color=sector_color),
+            marker=dict(size=5, color=sector_color),
+            opacity=opacity, name=sector, legendgroup=sector,
+            showlegend=False, hoverinfo="skip"
+        ))
 
-    # Arrow
-    dx = x_vals[-1] - x_vals[-2]
-    dy = y_vals[-1] - y_vals[-2]
+    # Calculate arrow direction
+    if len(x_vals) >= 3:
+        dx = x_vals[-1] - x_vals[-3]
+        dy = y_vals[-1] - y_vals[-3]
+    else:
+        dx = x_vals[-1] - x_vals[-2]
+        dy = y_vals[-1] - y_vals[-2]
+
     angle = (np.degrees(np.arctan2(dy, dx)) + 360) % 360
 
+    # Arrow head
     fig.add_trace(go.Scatter(
         x=[x_vals[-1]], y=[y_vals[-1]],
         mode="markers",
-        marker=dict(symbol="triangle-up", size=14, angle=angle, color=sector_color, line=dict(width=1, color="white")),
-        name=sector,
+        marker=dict(symbol="triangle-up", size=16, angle=angle, color=sector_color, line=dict(width=2, color="white")),
+        name=sector, legendgroup=sector,
         hovertemplate=f"<b>{sector}</b><br>RS-Ratio: %{{x:.2f}}<br>RS-Momentum: %{{y:.2f}}<extra></extra>"
     ))
 
     # Label
-    label_offset_x = 1.5 if dx >= 0 else -1.5
-    label_offset_y = 0.5 if dy >= 0 else -0.5
+    label_offset_x = 2.0 if dx >= 0 else -2.0
+    label_offset_y = 1.0 if dy >= 0 else -1.0
     fig.add_annotation(
         x=x_vals[-1] + label_offset_x, y=y_vals[-1] + label_offset_y,
-        text=sector, showarrow=False,
-        font=dict(size=10, color=sector_color, family="Arial"),
-        bgcolor="rgba(255, 255, 255, 0.7)", borderpad=2
+        text=f"<b>{sector}</b>", showarrow=False,
+        font=dict(size=11, color=sector_color, family="Arial Black"),
+        bgcolor="rgba(255, 255, 255, 0.85)", bordercolor=sector_color,
+        borderwidth=1, borderpad=3
     )
 
 fig.update_layout(
@@ -137,8 +147,13 @@ fig.update_layout(
     plot_bgcolor="white",
     legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02,
                 bgcolor="rgba(255, 255, 255, 0.9)", bordercolor="lightgray", borderwidth=1, font=dict(size=11)),
-    hovermode='closest', title="Nifty Sector RRG - Visual Test"
+    hovermode='closest', title="Nifty Sector RRG - Visual Test (Enhanced)",
+    hoverlabel=dict(bgcolor="white", font_size=12, font_family="Arial")
 )
+
+# Update traces for hover highlighting
+for trace in fig.data:
+    trace.update(hoverlabel=dict(namelength=-1))
 
 # Save to HTML
 fig.write_html("rrg_test_output.html")
