@@ -43,28 +43,58 @@ def load_price_data(
     data = {}
 
     # --- Benchmark ---
-    benchmark_df = yf.download(
-        benchmark,
-        period=period,
-        progress=False
-    )
+    try:
+        benchmark_df = yf.download(
+            benchmark,
+            period=period,
+            progress=False,
+            auto_adjust=True
+        )
 
-    if benchmark_df.empty or "Close" not in benchmark_df:
-        raise ValueError("Benchmark data missing Close column")
+        # Handle MultiIndex columns if present
+        if isinstance(benchmark_df.columns, pd.MultiIndex):
+            benchmark_df.columns = benchmark_df.columns.droplevel(1)
 
-    data[benchmark] = benchmark_df
+        if benchmark_df.empty:
+            raise ValueError(f"No data returned for benchmark {benchmark}")
+
+        if "Close" not in benchmark_df.columns:
+            raise ValueError(f"Benchmark data missing Close column. Available columns: {benchmark_df.columns.tolist()}")
+
+        data[benchmark] = benchmark_df
+
+    except Exception as e:
+        raise ValueError(f"Failed to load benchmark data for {benchmark}: {str(e)}")
 
     # --- Sector data ---
     for sector, ticker in sectors.items():
-        df = yf.download(
-            ticker,
-            period=period,
-            progress=False
-        )
+        try:
+            df = yf.download(
+                ticker,
+                period=period,
+                progress=False,
+                auto_adjust=True
+            )
 
-        if df.empty or "Close" not in df:
+            # Handle MultiIndex columns if present
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.droplevel(1)
+
+            if df.empty:
+                print(f"Warning: No data returned for sector {sector} ({ticker})")
+                continue
+
+            if "Close" not in df.columns:
+                print(f"Warning: Sector {sector} data missing Close column. Available columns: {df.columns.tolist()}")
+                continue
+
+            data[sector] = df
+
+        except Exception as e:
+            print(f"Warning: Failed to load data for sector {sector} ({ticker}): {str(e)}")
             continue
 
-        data[sector] = df
+    if len(data) <= 1:  # Only benchmark, no sectors
+        raise ValueError("No sector data could be loaded. Please check your internet connection and try again.")
 
     return data

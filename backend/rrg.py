@@ -52,6 +52,10 @@ def calculate_rrg(data, rs_period, roc_period, tail_length):
             print(f"Error processing sector {sector}: {e}")
             continue
 
+    # Check if we have any data
+    if not records:
+        raise ValueError("No valid sector data found. Please check your data sources and try again.")
+
     df = pd.concat(records, ignore_index=True)
 
     # ✅ validate AFTER creation
