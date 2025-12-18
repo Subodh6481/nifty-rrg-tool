@@ -130,21 +130,33 @@ for sector in rrg_metrics["sector"].unique():
         dx = x_vals[-1] - x_vals[-3]
         dy = y_vals[-1] - y_vals[-3]
 
-    angle = (np.degrees(np.arctan2(dy, dx)) + 360) % 360
-
-    # Arrow head
+    # Marker at latest point
     fig.add_trace(go.Scatter(
         x=[x_vals[-1]], y=[y_vals[-1]],
         mode="markers",
-        marker=dict(symbol="triangle-up", size=18, angle=angle, color=sector_color, line=dict(width=2, color="white")),
+        marker=dict(symbol="circle", size=10, color=sector_color, line=dict(width=2, color="white")),
         name=sector, legendgroup=sector,
         hovertemplate=f"<b>{sector}</b><br>RS-Ratio: %{{x:.2f}}<br>RS-Momentum: %{{y:.2f}}<extra></extra>"
     ))
 
+    # Arrow annotation (zoom-stable)
+    arrow_start_x = x_vals[-2]
+    arrow_start_y = y_vals[-2]
+    arrow_end_x = x_vals[-1]
+    arrow_end_y = y_vals[-1]
+
+    fig.add_annotation(
+        x=arrow_end_x, y=arrow_end_y,
+        ax=arrow_start_x, ay=arrow_start_y,
+        xref='x', yref='y', axref='x', ayref='y',
+        showarrow=True, arrowhead=2, arrowsize=1.5,
+        arrowwidth=3, arrowcolor=sector_color, opacity=0.8
+    )
+
     # Position label close to arrow tip
     offset_distance = 1.2
-    angle_rad = np.radians(angle)
-    perpendicular_angle = angle_rad + np.pi/4
+    angle = np.arctan2(dy, dx)  # Calculate angle from dx, dy
+    perpendicular_angle = angle + np.pi/4
     label_offset_x = offset_distance * np.cos(perpendicular_angle)
     label_offset_y = offset_distance * np.sin(perpendicular_angle)
 
