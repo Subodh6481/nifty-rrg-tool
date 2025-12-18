@@ -160,19 +160,35 @@ def plot_rrg(rrg_metrics):
         if len(x_vals) < 2:
             continue  # not enough points for tail
 
-        # Create gradient effect for tail - older points are more transparent
-        # Tail (history) - with gradient opacity
-        for i in range(len(x_vals) - 1):
-            # Calculate opacity based on position in tail (older = more transparent)
-            opacity = 0.2 + (i / (len(x_vals) - 1)) * 0.5  # Range from 0.2 to 0.7
+        # Draw the complete tail as a single line (more visible)
+        # Tail line - solid line connecting all historical points
+        fig.add_trace(go.Scatter(
+            x=x_vals[:-1],
+            y=y_vals[:-1],
+            mode="lines",
+            line=dict(width=3, color=sector_color),
+            opacity=0.6,
+            name=sector,
+            legendgroup=sector,
+            showlegend=False,
+            hoverinfo="skip"
+        ))
 
-            # Draw line segment
+        # Add markers on the tail with gradient size (older = smaller)
+        for i in range(len(x_vals) - 1):
+            # Marker size increases as we get closer to current position
+            marker_size = 4 + (i / (len(x_vals) - 1)) * 4  # Range from 4 to 8
+            opacity = 0.4 + (i / (len(x_vals) - 1)) * 0.4  # Range from 0.4 to 0.8
+
             fig.add_trace(go.Scatter(
-                x=[x_vals[i], x_vals[i+1]],
-                y=[y_vals[i], y_vals[i+1]],
-                mode="lines+markers",
-                line=dict(width=2, color=sector_color),
-                marker=dict(size=5, color=sector_color),
+                x=[x_vals[i]],
+                y=[y_vals[i]],
+                mode="markers",
+                marker=dict(
+                    size=marker_size,
+                    color=sector_color,
+                    line=dict(width=1, color="white")
+                ),
                 opacity=opacity,
                 name=sector,
                 legendgroup=sector,
@@ -180,14 +196,15 @@ def plot_rrg(rrg_metrics):
                 hoverinfo="skip"
             ))
 
-        # Calculate arrow direction from last few points for smoother direction
-        if len(x_vals) >= 3:
-            # Use last 3 points for better direction calculation
+        # Calculate arrow direction - use last 2 points for most accurate direction
+        dx = x_vals[-1] - x_vals[-2]
+        dy = y_vals[-1] - y_vals[-2]
+
+        # Only use 3 points if movement is very small (to avoid jitter)
+        movement_magnitude = np.sqrt(dx**2 + dy**2)
+        if movement_magnitude < 0.5 and len(x_vals) >= 3:
             dx = x_vals[-1] - x_vals[-3]
             dy = y_vals[-1] - y_vals[-3]
-        else:
-            dx = x_vals[-1] - x_vals[-2]
-            dy = y_vals[-1] - y_vals[-2]
 
         angle = (np.degrees(np.arctan2(dy, dx)) + 360) % 360
 
@@ -198,7 +215,7 @@ def plot_rrg(rrg_metrics):
             mode="markers",
             marker=dict(
                 symbol="triangle-up",
-                size=16,
+                size=18,
                 angle=angle,
                 color=sector_color,
                 line=dict(width=2, color="white")
@@ -213,20 +230,28 @@ def plot_rrg(rrg_metrics):
             )
         ))
 
-        # Add sector label next to latest position with better positioning
-        label_offset_x = 2.0 if dx >= 0 else -2.0
-        label_offset_y = 1.0 if dy >= 0 else -1.0
+        # Position label very close to arrow tip, slightly offset to avoid overlap
+        # Use a small offset perpendicular to arrow direction for better readability
+        offset_distance = 1.2  # Reduced from 2.5 to keep label closer
+        angle_rad = np.radians(angle)
+
+        # Offset slightly perpendicular to arrow direction (90 degrees)
+        perpendicular_angle = angle_rad + np.pi/4  # 45 degrees offset
+        label_offset_x = offset_distance * np.cos(perpendicular_angle)
+        label_offset_y = offset_distance * np.sin(perpendicular_angle)
 
         fig.add_annotation(
             x=x_vals[-1] + label_offset_x,
             y=y_vals[-1] + label_offset_y,
             text=f"<b>{sector}</b>",
             showarrow=False,
-            font=dict(size=11, color=sector_color, family="Arial Black"),
-            bgcolor="rgba(255, 255, 255, 0.85)",
+            font=dict(size=9, color=sector_color, family="Arial", weight="bold"),
+            bgcolor="rgba(255, 255, 255, 0.95)",
             bordercolor=sector_color,
             borderwidth=1,
-            borderpad=3
+            borderpad=2,
+            xanchor="center",
+            yanchor="middle"
         )
 
 

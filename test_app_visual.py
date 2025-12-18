@@ -90,7 +90,7 @@ quadrant_labels = [
 for label in quadrant_labels:
     fig.add_annotation(**label)
 
-# Plot each sector with gradient tail
+# Plot each sector with improved visualization
 for sector in rrg_metrics["sector"].unique():
     df = rrg_metrics[rrg_metrics["sector"] == sector]
     x_vals = df["rs_ratio"].values
@@ -100,25 +100,35 @@ for sector in rrg_metrics["sector"].unique():
     if len(x_vals) < 2:
         continue
 
-    # Tail with gradient opacity
+    # Tail line - solid line
+    fig.add_trace(go.Scatter(
+        x=x_vals[:-1], y=y_vals[:-1],
+        mode="lines",
+        line=dict(width=3, color=sector_color),
+        opacity=0.6, name=sector, legendgroup=sector,
+        showlegend=False, hoverinfo="skip"
+    ))
+
+    # Markers with gradient size
     for i in range(len(x_vals) - 1):
-        opacity = 0.2 + (i / (len(x_vals) - 1)) * 0.5
+        marker_size = 4 + (i / (len(x_vals) - 1)) * 4
+        opacity = 0.4 + (i / (len(x_vals) - 1)) * 0.4
         fig.add_trace(go.Scatter(
-            x=[x_vals[i], x_vals[i+1]], y=[y_vals[i], y_vals[i+1]],
-            mode="lines+markers",
-            line=dict(width=2, color=sector_color),
-            marker=dict(size=5, color=sector_color),
+            x=[x_vals[i]], y=[y_vals[i]],
+            mode="markers",
+            marker=dict(size=marker_size, color=sector_color, line=dict(width=1, color="white")),
             opacity=opacity, name=sector, legendgroup=sector,
             showlegend=False, hoverinfo="skip"
         ))
 
     # Calculate arrow direction
-    if len(x_vals) >= 3:
+    dx = x_vals[-1] - x_vals[-2]
+    dy = y_vals[-1] - y_vals[-2]
+
+    movement_magnitude = np.sqrt(dx**2 + dy**2)
+    if movement_magnitude < 0.5 and len(x_vals) >= 3:
         dx = x_vals[-1] - x_vals[-3]
         dy = y_vals[-1] - y_vals[-3]
-    else:
-        dx = x_vals[-1] - x_vals[-2]
-        dy = y_vals[-1] - y_vals[-2]
 
     angle = (np.degrees(np.arctan2(dy, dx)) + 360) % 360
 
@@ -126,20 +136,25 @@ for sector in rrg_metrics["sector"].unique():
     fig.add_trace(go.Scatter(
         x=[x_vals[-1]], y=[y_vals[-1]],
         mode="markers",
-        marker=dict(symbol="triangle-up", size=16, angle=angle, color=sector_color, line=dict(width=2, color="white")),
+        marker=dict(symbol="triangle-up", size=18, angle=angle, color=sector_color, line=dict(width=2, color="white")),
         name=sector, legendgroup=sector,
         hovertemplate=f"<b>{sector}</b><br>RS-Ratio: %{{x:.2f}}<br>RS-Momentum: %{{y:.2f}}<extra></extra>"
     ))
 
-    # Label
-    label_offset_x = 2.0 if dx >= 0 else -2.0
-    label_offset_y = 1.0 if dy >= 0 else -1.0
+    # Position label close to arrow tip
+    offset_distance = 1.2
+    angle_rad = np.radians(angle)
+    perpendicular_angle = angle_rad + np.pi/4
+    label_offset_x = offset_distance * np.cos(perpendicular_angle)
+    label_offset_y = offset_distance * np.sin(perpendicular_angle)
+
     fig.add_annotation(
         x=x_vals[-1] + label_offset_x, y=y_vals[-1] + label_offset_y,
         text=f"<b>{sector}</b>", showarrow=False,
-        font=dict(size=11, color=sector_color, family="Arial Black"),
-        bgcolor="rgba(255, 255, 255, 0.85)", bordercolor=sector_color,
-        borderwidth=1, borderpad=3
+        font=dict(size=9, color=sector_color, family="Arial", weight="bold"),
+        bgcolor="rgba(255, 255, 255, 0.95)", bordercolor=sector_color,
+        borderwidth=1, borderpad=2,
+        xanchor="center", yanchor="middle"
     )
 
 fig.update_layout(
