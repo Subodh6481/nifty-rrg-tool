@@ -1,6 +1,7 @@
 # app.py
 import streamlit as st
 import plotly.graph_objects as go
+import numpy as np
 from backend.rrg import calculate_rrg
 from backend.data import load_price_data
 

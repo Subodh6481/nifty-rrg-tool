@@ -30,11 +30,14 @@ def calculate_rrg(data, rs_period, roc_period, tail_length):
             rs_ratio / rs_ratio.shift(roc_period)
         ) * 100
 
+        # Create DataFrame with proper index alignment
         rrg_df = pd.DataFrame({
-            "sector": sector,
             "rs_ratio": rs_ratio,
             "rs_momentum": rs_momentum
         }).dropna()
+
+        # Add sector column after DataFrame creation
+        rrg_df["sector"] = sector
 
         # keep only tail
         rrg_df = rrg_df.tail(tail_length)
