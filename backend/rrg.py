@@ -17,32 +17,40 @@ def calculate_rrg(data, rs_period, roc_period, tail_length):
         if sector == "^NSEI":
             continue
 
-        rel = df["Close"] / benchmark_close
-        rel = rel.dropna()
+        try:
+            rel = df["Close"] / benchmark_close
+            rel = rel.dropna()
 
-        # RS-Ratio (EMA normalized to 100)
-        rs_ratio = (
-            rel / rel.ewm(span=rs_period, adjust=False).mean()
-        ) * 100
+            # RS-Ratio (EMA normalized to 100)
+            rs_ratio = (
+                rel / rel.ewm(span=rs_period, adjust=False).mean()
+            ) * 100
 
-        # RS-Momentum (ROC normalized to 100)
-        rs_momentum = (
-            rs_ratio / rs_ratio.shift(roc_period)
-        ) * 100
+            # RS-Momentum (ROC normalized to 100)
+            rs_momentum = (
+                rs_ratio / rs_ratio.shift(roc_period)
+            ) * 100
 
-        # Create DataFrame with proper index alignment
-        rrg_df = pd.DataFrame({
-            "rs_ratio": rs_ratio,
-            "rs_momentum": rs_momentum
-        }).dropna()
+            # Create DataFrame from Series with proper index
+            rrg_df = pd.DataFrame({
+                "rs_ratio": rs_ratio.values,
+                "rs_momentum": rs_momentum.values
+            })
 
-        # Add sector column after DataFrame creation
-        rrg_df["sector"] = sector
+            # Drop NaN values first
+            rrg_df = rrg_df.dropna()
 
-        # keep only tail
-        rrg_df = rrg_df.tail(tail_length)
+            # Add sector column
+            rrg_df["sector"] = sector
 
-        records.append(rrg_df)
+            # keep only tail
+            rrg_df = rrg_df.tail(tail_length)
+
+            records.append(rrg_df)
+
+        except Exception as e:
+            print(f"Error processing sector {sector}: {e}")
+            continue
 
     df = pd.concat(records, ignore_index=True)
 
