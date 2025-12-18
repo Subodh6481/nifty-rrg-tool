@@ -18,28 +18,29 @@ SECTOR_TICKERS = {
 
 
 def load_price_data(
-    sectors: list[str],
+    sectors: dict,
     benchmark: str,
     period: str = "6mo"
 ) -> dict:
     """
     Fetch adjusted close price data for sectors + benchmark.
 
+    Args:
+        sectors: Dictionary mapping sector names to tickers, e.g., {"IT": "^CNXIT", "Bank": "^NSEBANK"}
+        benchmark: Benchmark ticker symbol, e.g., "^NSEI"
+        period: Time period for data, e.g., "6mo"
+
     Returns:
+        Dictionary with benchmark and sector DataFrames:
         {
-            "benchmark": pd.Series,
-            "sectors": {
-                "IT": pd.Series,
-                "Bank": pd.Series,
-                ...
-            }
+            "^NSEI": pd.DataFrame,
+            "IT": pd.DataFrame,
+            "Bank": pd.DataFrame,
+            ...
         }
     """
 
-    data = {
-        "benchmark": None,
-        "sectors": {}
-    }
+    data = {}
 
     # --- Benchmark ---
     benchmark_df = yf.download(
@@ -48,27 +49,22 @@ def load_price_data(
         progress=False
     )
 
-    if "Close" not in benchmark_df:
+    if benchmark_df.empty or "Close" not in benchmark_df:
         raise ValueError("Benchmark data missing Close column")
 
-    data["benchmark"] = benchmark_df["Close"]
+    data[benchmark] = benchmark_df
 
     # --- Sector data ---
-    for sector in sectors:
-        ticker = SECTOR_TICKERS.get(sector)
-
-        if not ticker:
-            continue
-
+    for sector, ticker in sectors.items():
         df = yf.download(
             ticker,
             period=period,
             progress=False
         )
 
-        if "Close" not in df:
+        if df.empty or "Close" not in df:
             continue
 
-        data["sectors"][sector] = df["Close"]
+        data[sector] = df
 
     return data
